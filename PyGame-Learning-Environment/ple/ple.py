@@ -397,6 +397,7 @@ class PLE(object):
             self._draw_frame()
 
         self.frame_count += self.num_steps
+        # print ('self.frame_count',self.frame_count)
 
         return self._getReward()
 

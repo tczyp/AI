@@ -76,7 +76,7 @@ class Board(object):
 
     def resetGroups(self):
         self.score = 0
-        self.lives = 3
+        self.lives = 1
         self.map = []  # We will create the map again when we reset the game
         self.Players = [
             Player(

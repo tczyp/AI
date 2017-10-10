@@ -20,7 +20,7 @@ INITIAL_EPSILON = 0.3  # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 128  # size of minibatch
 
-map_width = 80
+map_width = 120
 
 class BrainDQN:
     MAP_WIDTH = map_width

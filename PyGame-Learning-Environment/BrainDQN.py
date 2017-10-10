@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
+import cv2
 
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
@@ -16,16 +17,12 @@ GAMMA = 0.95  # decay rate of past observations
 OBSERVE = 100.  # timesteps to observe before training
 EXPLORE = 150000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.0001  # final value of epsilon
-INITIAL_EPSILON = 0.3  # starting value of epsilon
+INITIAL_EPSILON = 0.5  # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 128  # size of minibatch
 
-map_width = 80
-
 class BrainDQN:
-    MAP_WIDTH = map_width
-
-    def __init__(self, actions):
+    def __init__(self, action_set, map_width, map_height):
         self.no_random = False
         self.game_turn = 0
         self.game_step = 0
@@ -34,10 +31,15 @@ class BrainDQN:
         self.ac_tde = 2
         # init replay memory
         self.replayMemory = deque()
+
+        self.map_width = map_width
+        self.map_height = map_height
+
         # init some parameters
         self.timeStep = 0
         self.epsilon = INITIAL_EPSILON
-        self.actions = actions
+        self.action_set = action_set
+        self.actions = len(action_set)
         # self.ep_obs, self.ep_as, self.ep_rs = [], [], []
         # init Q network
         self.createQNetwork()
@@ -61,7 +63,7 @@ class BrainDQN:
 
         # input layer
 
-        self.stateInput = tf.placeholder("float", [None, map_width, map_width, 4])
+        self.stateInput = tf.placeholder("float", [None, self.map_width, self.map_height, 4])
         self.tf_acts = tf.placeholder(tf.float32, [None, self.actions], name="actions_num")
         self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value")
 
@@ -142,8 +144,9 @@ class BrainDQN:
 
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
+
+        nextObservation = np.reshape(nextObservation, (self.map_width, self.map_height, 1))
         newState = np.append(self.currentState[:, :, 1:], nextObservation, axis=2)
-        import cv2
         cv2.imshow('xxx', newState)
         #self.replayMemory.append((self.currentState, action, reward, newState, terminal))
         # replay_item = (self.currentState, action, reward, newState, terminal)
@@ -153,34 +156,7 @@ class BrainDQN:
 
         if terminal:
             self.game_turn += 1
-
-            # if self.game_turn % 30000 == 0 or True:
-            #     self.no_random = True
-            #     print('=======================================================')
-            #     print('====================NO RANDOM==========================')
-            #     print('=======================================================')
-            # else:
-            #     self.no_random = False
-            #
-            # add_count = 1
-            # for item in self.good_steps[::-1]:
-            #     self.addToReplayMemory(replay_item, add_count)
-            #     add_count = add_count - 1 if add_count > 1 else 1
-            #     # print ('add_count', add_count)
-
-            # if self.game_step > self.max_step:
-            #     add_count = 15
-            #     for item in self.good_steps[:-1:]:
-            #         self.addToReplayMemory(replay_item, add_count)
-            #         add_count = add_count - 1 if add_count > 1 else 1
-
-            # if self.game_step > self.max_step:
-            #     self.max_step = self.game_step
-            #
-            # self.game_step = 0
-            # self.good_steps = []
             self.learn()
-
 
         # if len(self.replayMemory) > REPLAY_MEMORY:
         #     self.replayMemory.popleft()
@@ -198,7 +174,7 @@ class BrainDQN:
             self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step=self.timeStep)
 
     def pickAction(self, reward, obs):
-        return self.actions[np.random.randint(0, len(self.actions))]
+        return self.action_set[np.random.randint(0, len(self.action_set))]
 
     def getAction(self):
         # QValue = self.QValue.eval(feed_dict={self.stateInput: [self.currentState]})[0]
@@ -206,25 +182,26 @@ class BrainDQN:
         # action_index = 0
         if self.timeStep % FRAME_PER_ACTION == 0:
             if random.random() <= self.epsilon:
-                # action_index = random.randrange(self.actions)
-                # action[action_index] = 1
-                prob_weights = self.session.run(self.all_act_prob, feed_dict={self.stateInput: [self.currentState]})
-                action_index = np.random.choice(range(prob_weights.shape[1]),
-                                                p=prob_weights.ravel())  # select action w.r.t the actions prob
+                action_index = random.randrange(self.actions)
                 action[action_index] = 1
+                # prob_weights = self.session.run(self.all_act_prob, feed_dict={self.stateInput: [self.currentState]})
+                # action_index = np.random.choice(range(prob_weights.shape[1]),
+                #                                 p=prob_weights.ravel())  # select action w.r.t the actions prob
+                # action[action_index] = 1
             else:
                 prob_weights = self.session.run(self.all_act_prob, feed_dict={self.stateInput: [self.currentState]})
                 # action_index = np.random.choice(range(prob_weights.shape[1]), p=prob_weights.ravel())
                 action_index = np.argmax(prob_weights)
                 action[action_index] = 1
         else:
-            action[0] = 1  # do nothing
+            action_index = 5
+            action[action_index] = 1  # do nothing
 
         # change episilon
         if self.epsilon > FINAL_EPSILON and self.timeStep > OBSERVE:
             self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
-        return action
+        return self.action_set[action_index], action
 
     def setInitState(self, observation):
         self.currentState = np.stack((observation, observation, observation, observation), axis=2)
@@ -305,7 +282,7 @@ class BrainDQN:
             reward = item[2]
             q_values = self.session.run(self.QValue, feed_dict={self.stateInput: [item[0]]})
             eval_max_q = np.max(q_values)
-            if reward == -1:
+            if i == len(self.cur_turn_steps) - 1:
                 new_q = reward
                 e_q_value = reward
                 tde = abs(new_q - eval_max_q)

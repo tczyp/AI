@@ -21,10 +21,10 @@ class NaiveAgent():
 	def pickAction(self, reward, obs):
 		return self.actions[np.random.randint(0, len(self.actions))]
 
-def preprocess(observation):
-	observation = cv2.cvtColor(cv2.resize(observation, (BrainDQN.MAP_WIDTH, BrainDQN.MAP_WIDTH)), cv2.COLOR_BGR2GRAY)
-	ret, observation = cv2.threshold(observation,1,255,cv2.THRESH_BINARY)
-	return np.reshape(observation,(BrainDQN.MAP_WIDTH,BrainDQN.MAP_WIDTH,1))
+# def preprocess(observation):
+# 	observation = cv2.cvtColor(cv2.resize(observation, (BrainDQN.MAP_WIDTH, BrainDQN.MAP_WIDTH)), cv2.COLOR_BGR2GRAY)
+# 	ret, observation = cv2.threshold(observation,1,255,cv2.THRESH_BINARY)
+# 	return np.reshape(observation,(BrainDQN.MAP_WIDTH,BrainDQN.MAP_WIDTH,1))
 
 def main():
 	# Step 1: init BrainDQN
@@ -47,18 +47,17 @@ def main():
 	nb_frames = 10000
 	reward = 0.0
 
-	myAgent = BrainDQN(p.getActionSet())
 	next_obs = p.getScreenRGB()
+	myAgent = BrainDQN(p.getActionSet(), next_obs.shape[0], next_obs.shape[1])
+	myAgent.setInitState(next_obs)
 
 	for f in range(nb_frames):
 		obs = next_obs
 		action = myAgent.pickAction(reward, obs)
 		reward = p.act(action)
 		next_obs = p.getScreenRGB()
-		myAgent.setPerception(next_obs, action, reward, False)
 		if p.game_over(): #check if the game is over
 			p.reset_game()
-
 
 if __name__ == '__main__':
 	main()
