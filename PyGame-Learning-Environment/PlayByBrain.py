@@ -28,7 +28,7 @@ class NaiveAgent():
 
 def preprocess(observation, map_width, map_height):
 	observation = cv2.cvtColor(cv2.resize(observation, (map_height, map_width)), cv2.COLOR_BGR2GRAY)
-	# ret, observation = cv2.threshold(observation, 1, 255, cv2.THRESH_BINARY)
+	# ret, observation = cv2.threshold(observation, 150, 255, cv2.THRESH_BINARY)
 	return observation
 	# return np.reshape(observation, (map_width, map_height, 1))
 
@@ -47,15 +47,15 @@ def main():
 	# brain.setInitState(observation0)
 
 	game = MyGame()
-	p = PLE(game, fps=30, display_screen=False, force_fps=True, frame_skip=2)
+	p = PLE(game, fps=30, display_screen=False, force_fps=True, frame_skip=1)
 	p.init()
 
 	nb_frames = 0
 	reward = 0.0
 
 	next_obs = p.getScreenRGB()
-	map_width = int(next_obs.shape[0] / 4)
-	map_height = int(next_obs.shape[1] / 4)
+	map_width = int(next_obs.shape[0] / 2)
+	map_height = int(next_obs.shape[1] / 2)
 
 	next_obs = preprocess(next_obs, map_width, map_height)
 
@@ -75,8 +75,9 @@ def main():
 
 		next_obs = p.getScreenRGB()
 		next_obs = preprocess(next_obs, map_width, map_height)
-		if p.game_over() or nb_frames > 3000: #check if the game is over
+		if p.game_over() or nb_frames > 5000: #check if the game is over
 			myAgent.setPerception(next_obs, brain_action, reward, True)
+			nb_frames = 0
 			p.reset_game()
 		else:
 			myAgent.setPerception(next_obs, brain_action, reward, False)
