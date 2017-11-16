@@ -1,10 +1,12 @@
 import tensorflow as tf
 
+print (tf.__version__)
+
 with tf.device("/GPU:0"):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     config.log_device_placement = True
-    # config.allow_soft_placement = True
+    config.allow_soft_placement = True
     # config = tf.ConfigProto(log_device_placement=True, allow_soft_placement=True)
     sess = tf.Session(config=config)
 

@@ -1,11 +1,11 @@
 import numpy as np
 # from ple.games.pong import Pong as MyGame
-# from ple.games.pixelcopter import Pixelcopter as MyGame
+from ple.games.pixelcopter import Pixelcopter as MyGame
 # from ple.games.puckworld import PuckWorld as MyGame
 # from ple.games.raycastmaze import RaycastMaze as MyGame
 # from ple.games.snake import Snake as MyGame
 # from ple.games.waterworld import WaterWorld as MyGame
-from ple.games.flappybird import FlappyBird as MyGame
+# from ple.games.flappybird import FlappyBird as MyGame
 # from ple.games.monsterkong import MonsterKong as MyGame
 from ple import PLE
 import cv2
@@ -54,8 +54,8 @@ def main():
 	reward = 0.0
 
 	next_obs = p.getScreenRGB()
-	map_width = int(next_obs.shape[0] / 2)
-	map_height = int(next_obs.shape[1] / 2)
+	map_width = int(next_obs.shape[0] / 1)
+	map_height = int(next_obs.shape[1] / 1)
 
 	next_obs = preprocess(next_obs, map_width, map_height)
 

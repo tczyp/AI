@@ -13,13 +13,15 @@ import cv2
 
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
-GAMMA = 0.95  # decay rate of past observations
+GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 100.  # timesteps to observe before training
 EXPLORE = 150000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.0001  # final value of epsilon
-INITIAL_EPSILON = 0.5  # starting value of epsilon
+INITIAL_EPSILON = 0.1  #
+#  starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 128  # size of minibatch
+RL = 1e-7
 
 class BrainDQN:
     def __init__(self, action_set, map_width, map_height):
@@ -45,74 +47,84 @@ class BrainDQN:
         self.createQNetwork()
 
     def createQNetwork(self):
-        # network weights
-        W_conv1 = self.weight_variable([8, 8, 4, 32])
-        b_conv1 = self.bias_variable([32])
+        with tf.device("/CPU:0"):
+            # network weights
+            W_conv1 = self.weight_variable([8, 8, 4, 32])
+            b_conv1 = self.bias_variable([32])
 
-        W_conv2 = self.weight_variable([4, 4, 32, 64])
-        b_conv2 = self.bias_variable([64])
+            W_conv2 = self.weight_variable([4, 4, 32, 64])
+            b_conv2 = self.bias_variable([64])
 
-        W_conv3 = self.weight_variable([3, 3, 64, 64])
-        b_conv3 = self.bias_variable([64])
+            W_conv3 = self.weight_variable([3, 3, 64, 64])
+            b_conv3 = self.bias_variable([64])
 
-        W_fc1 = self.weight_variable([1600, 512])
-        b_fc1 = self.bias_variable([512])
+            neural_count = 2048
 
-        W_fc2 = self.weight_variable([512, self.actions])
-        b_fc2 = self.bias_variable([self.actions])
+            # W_fc1 = self.weight_variable([1600, 512])
+            b_fc1 = self.bias_variable([neural_count])
 
-        # input layer
+            W_fc2 = self.weight_variable([neural_count, self.actions])
+            b_fc2 = self.bias_variable([self.actions])
 
-        self.stateInput = tf.placeholder("float", [None, self.map_width, self.map_height, 4])
-        self.tf_acts = tf.placeholder(tf.float32, [None, self.actions], name="actions_num")
-        self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value")
+            # input layer
 
-        # hidden layers
-        h_conv1 = tf.nn.relu(self.conv2d(self.stateInput, W_conv1, 4) + b_conv1)
-        h_pool1 = self.max_pool_2x2(h_conv1)
+            self.stateInput = tf.placeholder("float", [None, self.map_width, self.map_height, 4])
+            self.tf_acts = tf.placeholder(tf.float32, [None, self.actions], name="actions_num")
+            self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value")
 
-        h_conv2 = tf.nn.relu(self.conv2d(h_pool1, W_conv2, 2) + b_conv2)
+            # hidden layers
+            h_conv1 = tf.nn.relu(self.conv2d(self.stateInput, W_conv1, 4) + b_conv1)
+            h_pool1 = self.max_pool_2x2(h_conv1)
 
-        h_conv3 = tf.nn.relu(self.conv2d(h_conv2, W_conv3, 1) + b_conv3)
+            h_conv2 = tf.nn.relu(self.conv2d(h_pool1, W_conv2, 2) + b_conv2)
 
-        # h_conv3_flat = tf.reshape(h_conv3, [-1, 1600])
-        # h_fc1 = tf.nn.relu(tf.matmul(h_conv3_flat, W_fc1) + b_fc1)
+            h_conv3 = tf.nn.relu(self.conv2d(h_conv2, W_conv3, 1) + b_conv3)
 
-        cur_shape = h_conv3.shape
-        d = int(cur_shape[1] * cur_shape[2] * cur_shape[3])
-        h_conv3_flat = tf.reshape(h_conv3, [-1, d])
-        W_fc1 = self.weight_variable([d, 512])
-        hide_layer = tf.nn.tanh(tf.matmul(h_conv3_flat, W_fc1) + b_fc1)
-        self.all_act = tf.matmul(hide_layer, W_fc2) + b_fc2
-        self.QValue = self.all_act
-        self.all_act_prob = tf.nn.softmax(self.all_act)
+            # h_conv3_flat = tf.reshape(h_conv3, [-1, 1600])
+            # h_fc1 = tf.nn.relu(tf.matmul(h_conv3_flat, W_fc1) + b_fc1)
 
-        # self.QValue = self.all_act_prob
-        # Q Value layer
-        # self.QValue = tf.matmul(h_fc1, W_fc2) + b_fc2
+            cur_shape = h_conv3.get_shape()
+            d = int(cur_shape[1] * cur_shape[2] * cur_shape[3])
+            h_conv3_flat = tf.reshape(h_conv3, [-1, d])
+            W_fc1 = self.weight_variable([d, neural_count])
+            hide_layer = tf.nn.tanh(tf.matmul(h_conv3_flat, W_fc1) + b_fc1)
+            self.all_act = tf.matmul(hide_layer, W_fc2) + b_fc2
+            self.QValue = self.all_act
+            self.all_act_prob = tf.nn.softmax(self.all_act)
 
-        # self.actionInput = tf.placeholder("float", [None, self.actions])
+            # self.QValue = self.all_act_prob
+            # Q Value layer
+            # self.QValue = tf.matmul(h_fc1, W_fc2) + b_fc2
 
-        # self.neg_log_prob = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.all_act, labels=self.tf_acts)
-        # self.loss = tf.reduce_mean(self.neg_log_prob * self.tf_vt)
-        # self.trainStep = tf.train.AdamOptimizer(1e-6).minimize(self.loss)
+            # self.actionInput = tf.placeholder("float", [None, self.actions])
 
-        # self.yInput = tf.placeholder("float", [None])
-        Q_action = tf.reduce_sum(tf.multiply(self.QValue, self.tf_acts), reduction_indices=1)
-        self.loss = tf.reduce_mean(tf.square(self.tf_vt - Q_action))
-        self.trainStep = tf.train.AdamOptimizer(1e-6).minimize(self.loss)
+            # self.neg_log_prob = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.all_act, labels=self.tf_acts)
+            # self.loss = tf.reduce_mean(self.neg_log_prob * self.tf_vt)
+            # self.trainStep = tf.train.AdamOptimizer(1e-6).minimize(self.loss)
 
-        # saving and loading networks
-        self.saver = tf.train.Saver()
-        self.session = tf.InteractiveSession()
-        self.session.run(tf.initialize_all_variables())
+            # self.yInput = tf.placeholder("float", [None])
+            Q_action = tf.reduce_sum(tf.multiply(self.QValue, self.tf_acts), reduction_indices=1)
+            self.loss = tf.reduce_mean(tf.square(self.tf_vt - Q_action))
+            self.trainStep = tf.train.AdamOptimizer(RL).minimize(self.loss)
 
-        checkpoint = tf.train.get_checkpoint_state("saved_networks")
-        if checkpoint and checkpoint.model_checkpoint_path:
-            self.saver.restore(self.session, checkpoint.model_checkpoint_path)
-            print("Successfully loaded:", checkpoint.model_checkpoint_path)
-        else:
-            print("Could not find old network weights")
+            # saving and loading networks
+            self.saver = tf.train.Saver()
+            config = tf.ConfigProto()
+            # config.gpu_options.allow_growth = True
+            # config.log_device_placement = True
+            config.allow_soft_placement = True
+            # config = tf.ConfigProto(log_device_placement=True, allow_soft_placement=True)
+            self.session = tf.Session(config=config)
+            # self.session = tf.InteractiveSession()
+            # self.session.run(tf.initialize_all_variables())
+            self.session.run(tf.global_variables_initializer())
+
+            checkpoint = tf.train.get_checkpoint_state("saved_networks")
+            if checkpoint and checkpoint.model_checkpoint_path:
+                self.saver.restore(self.session, checkpoint.model_checkpoint_path)
+                print("Successfully loaded:", checkpoint.model_checkpoint_path)
+            else:
+                print("Could not find old network weights")
 
     # def trainQNetwork(self):
     #     # Step 1: obtain random minibatch from replay memory
@@ -143,35 +155,36 @@ class BrainDQN:
     #         self.saver.save(self.session, 'saved_networks_my_new/' + 'network' + '-dqn', global_step=self.timeStep)
 
     def setPerception(self, nextObservation, action, reward, terminal):
-        # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
+        with tf.device("/CPU:0"):
+            # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
 
-        nextObservation = np.reshape(nextObservation, (self.map_width, self.map_height, 1))
-        newState = np.append(self.currentState[:, :, 1:], nextObservation, axis=2)
-        cv2.imshow('xxx', newState)
-        #self.replayMemory.append((self.currentState, action, reward, newState, terminal))
-        # replay_item = (self.currentState, action, reward, newState, terminal)
-        # self.good_steps.append(replay_item)
+            nextObservation = np.reshape(nextObservation, (self.map_width, self.map_height, 1))
+            newState = np.append(self.currentState[:, :, 1:], nextObservation, axis=2)
+            cv2.imshow('xxx', newState)
+            #self.replayMemory.append((self.currentState, action, reward, newState, terminal))
+            # replay_item = (self.currentState, action, reward, newState, terminal)
+            # self.good_steps.append(replay_item)
 
-        self.store_transition(self.currentState, action, reward)
+            self.store_transition(self.currentState, action, reward)
 
-        if terminal:
-            self.game_turn += 1
-            self.learn()
+            if terminal:
+                self.game_turn += 1
+                self.learn()
 
-        # if len(self.replayMemory) > REPLAY_MEMORY:
-        #     self.replayMemory.popleft()
-        # if self.timeStep > OBSERVE:
-        #     # Train the network
-        #     self.trainQNetwork()
+            # if len(self.replayMemory) > REPLAY_MEMORY:
+            #     self.replayMemory.popleft()
+            # if self.timeStep > OBSERVE:
+            #     # Train the network
+            #     self.trainQNetwork()
 
-        self.currentState = newState
-        self.timeStep += 1
+            self.currentState = newState
+            self.timeStep += 1
 
-        # save network every 100000 iteration
-        if self.timeStep % 5000 == 0:
-            if not os.path.exists('saved_networks'):
-                os.mkdir('saved_networks')
-            self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step=self.timeStep)
+            # save network every 100000 iteration
+            if self.timeStep % 5000 == 0:
+                if not os.path.exists('saved_networks'):
+                    os.mkdir('saved_networks')
+                self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step=self.timeStep)
 
     def pickAction(self, reward, obs):
         return self.action_set[np.random.randint(0, len(self.action_set))]
@@ -222,40 +235,41 @@ class BrainDQN:
 
     def learn(self):
         # discount and normalize episode reward
-        self._discount_and_norm_rewards()
+        with tf.device("/CPU:0"):
+            self._discount_and_norm_rewards()
 
-        # train on episode
-        s_list,a_list,q_list = list(zip(*self.cur_turn_steps))
-        _,loss,all_act_prob,all_act,tf_acts = self.session.run([self.trainStep, self.loss, self.all_act_prob, self.all_act, self.tf_acts], feed_dict={
-            self.stateInput: s_list,  # shape=[None, n_obs]
-            self.tf_acts: np.array(a_list),  # shape=[None, ]
-            self.tf_vt: np.array(q_list),  # shape=[None, ]
-        })
+            # train on episode
+            s_list,a_list,q_list = list(zip(*self.cur_turn_steps))
+            _,loss,all_act_prob,all_act,tf_acts = self.session.run([self.trainStep, self.loss, self.all_act_prob, self.all_act, self.tf_acts], feed_dict={
+                self.stateInput: s_list,  # shape=[None, n_obs]
+                self.tf_acts: np.array(a_list),  # shape=[None, ]
+                self.tf_vt: np.array(q_list),  # shape=[None, ]
+            })
 
-        if len(self.replayMemory) > BATCH_SIZE * 4:
-            for k in range(10):
-                minibatch = random.sample(self.replayMemory, BATCH_SIZE)
-                s_list, a_list, q_list = list(zip(*minibatch))
+            if len(self.replayMemory) > BATCH_SIZE * 4:
+                for k in range(10):
+                    minibatch = random.sample(self.replayMemory, BATCH_SIZE)
+                    s_list, a_list, q_list = list(zip(*minibatch))
 
-                _, loss, all_act_prob, all_act, tf_acts = self.session.run(
-                    [self.trainStep, self.loss, self.all_act_prob, self.all_act, self.tf_acts], feed_dict={
-                    self.stateInput: s_list,  # shape=[None, n_obs]
-                    self.tf_acts: np.array(a_list),  # shape=[None, ]
-                    self.tf_vt: np.array(q_list),  # shape=[None, ]
-                })
+                    _, loss, all_act_prob, all_act, tf_acts = self.session.run(
+                        [self.trainStep, self.loss, self.all_act_prob, self.all_act, self.tf_acts], feed_dict={
+                        self.stateInput: s_list,  # shape=[None, n_obs]
+                        self.tf_acts: np.array(a_list),  # shape=[None, ]
+                        self.tf_vt: np.array(q_list),  # shape=[None, ]
+                    })
 
-        for item in self.cur_turn_steps:
-            self.replayMemory.append(item)
+            for item in self.cur_turn_steps:
+                self.replayMemory.append(item)
 
-        re_len = len(self.replayMemory)
-        print ('re_len', re_len)
-        while re_len > REPLAY_MEMORY:
-            self.replayMemory.popleft()
             re_len = len(self.replayMemory)
+            print ('re_len', re_len)
+            while re_len > REPLAY_MEMORY:
+                self.replayMemory.popleft()
+                re_len = len(self.replayMemory)
 
-        # self.ep_obs, self.ep_as, self.ep_rs = [], [], []    # empty episode data
-        self.cur_turn_steps = []
-        # return discounted_ep_rs_norm
+            # self.ep_obs, self.ep_as, self.ep_rs = [], [], []    # empty episode data
+            self.cur_turn_steps = []
+            # return discounted_ep_rs_norm
 
     def store_transition(self, s, a, r):
         self.cur_turn_steps.append([s, a, r])
@@ -299,8 +313,8 @@ class BrainDQN:
 
             # if tde is big, take more changes to improve it
             bi = len(self.cur_turn_steps) - i
-            if bi < 10:
-                for _ in range(int(10 / bi)):
+            if bi < 10 and True:
+                for _ in range(max(int(5 / bi), 3)):
                     if tde > random.random():
                         addition_list.append(item)
 
